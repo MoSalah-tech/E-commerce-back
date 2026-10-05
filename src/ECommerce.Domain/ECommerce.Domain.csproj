@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ECommerce.Domain</RootNamespace>
+    <AssemblyName>ECommerce.Domain</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    The Domain layer is the innermost layer of the architecture.
+    It intentionally has ZERO package dependencies.
+  -->
+
+</Project>

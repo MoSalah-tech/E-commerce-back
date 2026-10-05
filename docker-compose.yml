@@ -1,0 +1,6 @@
+services:
+  ecommerce.api:
+    image: ${DOCKER_REGISTRY-}ecommerceapi
+    build:
+      context: .
+      dockerfile: src/ECommerce.Api/Dockerfile

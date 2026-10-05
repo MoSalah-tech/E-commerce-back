@@ -1,0 +1,21 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+TestResults/
+[Cc]overage*/
+*.coverage
+
+# Secrets — never commit real values, only .env.example
+.env
+.env.*
+!.env.example
+*.pfx
+*.p12
+
+# Local tooling / databases
+.idea/
+*.db
+*.db-shm
+*.db-wal
