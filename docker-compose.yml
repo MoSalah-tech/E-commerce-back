@@ -1,6 +1,68 @@
 services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    ports:
+      # Host port so SSMS can attach; the container always listens on 1433.
+      - "${MSSQL_HOST_PORT:-1433}:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # One-shot initialisation: creates the application login and database, then
+  # exits. The api waits for this to finish, so EF never migrates into a
+  # database that does not exist yet.
+  db-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      APP_DB_USER: ${MSSQL_USER}
+      APP_DB_PASSWORD: ${MSSQL_PASSWORD}
+      APP_DB_NAME: ${MSSQL_DATABASE}
+    volumes:
+      - ./docker/init-db.sql:/init-db.sql:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - >
+        /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -Q "SELECT 1" >/dev/null &&
+        /opt/mssql-tools18/bin/sqlcmd -S mssql -U sa -P "$$MSSQL_SA_PASSWORD" -C -b
+        -v AppDbUser="$$APP_DB_USER"
+        -v AppDbPassword="$$APP_DB_PASSWORD"
+        -v AppDbName="$$APP_DB_NAME"
+        -i /init-db.sql
+    restart: "no"
+
   ecommerce.api:
     image: ${DOCKER_REGISTRY-}ecommerceapi
     build:
       context: .
       dockerfile: src/ECommerce.Api/Dockerfile
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      # Environment variables win over appsettings.json and user-secrets, so the
+      # container always uses the credentials from .env.
+      ConnectionStrings__DefaultConnection: >-
+        Server=mssql,1433;Database=${MSSQL_DATABASE};User Id=${MSSQL_USER};Password=${MSSQL_PASSWORD};MultipleActiveResultSets=True;TrustServerCertificate=True
+      Jwt__Issuer: ${Jwt__Issuer}
+      Jwt__Audience: ${Jwt__Audience}
+      Jwt__SigningKey: ${Jwt__SigningKey}
+      Jwt__ExpiryMinutes: ${Jwt__ExpiryMinutes}
+
+volumes:
+  mssql_data:
